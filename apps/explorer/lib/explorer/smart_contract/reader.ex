@@ -253,7 +253,7 @@ defmodule Explorer.SmartContract.Reader do
   end
 
   @doc """
-    Returns abi for not queriable functions of proxy's implementation which can be considered as read-only
+    Returns abi for not queryable functions of proxy's implementation which can be considered as read-only
   """
   @spec read_functions_required_wallet_proxy(String.t()) :: [%{}]
   def read_functions_required_wallet_proxy(implementation_address_hash_string) do
@@ -269,7 +269,7 @@ defmodule Explorer.SmartContract.Reader do
   end
 
   @doc """
-    Returns abi for not queriable functions of the smart contract which can be considered as read-only
+    Returns abi for not queryable functions of the smart contract which can be considered as read-only
   """
   @spec read_functions_required_wallet(SmartContract.t()) :: [%{}]
   def read_functions_required_wallet(%SmartContract{abi: abi}) do
@@ -290,7 +290,7 @@ defmodule Explorer.SmartContract.Reader do
     abi_with_method_id = get_abi_with_method_id(abi)
 
     abi_with_method_id
-    |> Enum.filter(&Helper.queriable_method?(&1))
+    |> Enum.filter(&Helper.queryable_method?(&1))
     |> fetch_current_values_from_blockchain(abi_with_method_id, contract_address_hash, false, options, from)
   end
 
@@ -300,7 +300,7 @@ defmodule Explorer.SmartContract.Reader do
     abi_with_method_id = get_abi_with_method_id(abi)
 
     abi_with_method_id
-    |> Enum.reject(&Helper.queriable_method?(&1))
+    |> Enum.reject(&Helper.queryable_method?(&1))
     |> Enum.filter(&Helper.read_with_wallet_method?(&1))
   end
 
@@ -868,7 +868,7 @@ defmodule Explorer.SmartContract.Reader do
     result =
       if String.ends_with?(type, "[]") do
         value
-        |> Enum.map(fn tuple -> new_value(%{"type" => String.slice(type, 0..-3)}, [tuple], 0) end)
+        |> Enum.map(fn tuple -> new_value(%{"type" => String.slice(type, 0..-3//1)}, [tuple], 0) end)
         |> flat_arrays_map()
       else
         value
@@ -922,7 +922,7 @@ defmodule Explorer.SmartContract.Reader do
   def zip_tuple_values_with_types(value, type) do
     types_string =
       type
-      |> String.slice(6..-2)
+      |> String.slice(6..-2//1)
 
     types =
       if String.trim(types_string) == "" do
