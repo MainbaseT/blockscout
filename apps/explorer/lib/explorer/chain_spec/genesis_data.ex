@@ -11,13 +11,11 @@ defmodule Explorer.ChainSpec.GenesisData do
 
   require Logger
 
+  alias Explorer.Chain.SmartContract
   alias Explorer.ChainSpec.Geth.Importer, as: GethImporter
   alias Explorer.ChainSpec.Parity.Importer
   alias Explorer.Helper
-  alias Explorer.SmartContract.Solidity.Publisher, as: SolidityPublisher
   alias HTTPoison.Response
-
-  @interval :timer.minutes(2)
 
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
@@ -25,7 +23,7 @@ defmodule Explorer.ChainSpec.GenesisData do
 
   @impl GenServer
   def init(_) do
-    Process.send_after(self(), :import, @interval)
+    Process.send_after(self(), :import, Application.get_env(:explorer, __MODULE__)[:genesis_processing_delay])
 
     {:ok, %{}}
   end
@@ -33,7 +31,7 @@ defmodule Explorer.ChainSpec.GenesisData do
   # Callback for errored fetch
   @impl GenServer
   def handle_info({_ref, {:error, reason}}, state) do
-    Logger.warn(fn -> "Failed to fetch and import genesis data or precompiled contracts: '#{reason}'." end)
+    Logger.warning(fn -> "Failed to fetch and import genesis data or precompiled contracts: '#{reason}'." end)
 
     fetch_genesis_data()
 
@@ -86,11 +84,14 @@ defmodule Explorer.ChainSpec.GenesisData do
   @spec fetch_genesis_data() :: Task.t() | :ok
   def fetch_genesis_data do
     chain_spec_path = get_path(:chain_spec_path)
+    Logger.info(fn -> "Fetching chain spec path: #{inspect(chain_spec_path)}." end)
     precompiled_config_path = get_path(:precompiled_config_path)
     Logger.info(fn -> "Fetching precompiled config path: #{inspect(precompiled_config_path)}." end)
 
     if is_nil(chain_spec_path) and is_nil(precompiled_config_path) do
-      Logger.warn(fn -> "Genesis data is not fetched. Neither chain spec path or precompiles config path are set." end)
+      Logger.warning(fn ->
+        "Genesis data is not fetched. Neither chain spec path or precompiles config path are set."
+      end)
     else
       json_rpc_named_arguments = Application.fetch_env!(:indexer, :json_rpc_named_arguments)
       variant = Keyword.fetch!(json_rpc_named_arguments, :variant)
@@ -143,7 +144,7 @@ defmodule Explorer.ChainSpec.GenesisData do
 
         {:error, reason} ->
           # credo:disable-for-next-line Credo.Check.Refactor.Nesting
-          Logger.warn(fn -> "#{warn_message_prefix} #{inspect(reason)}" end)
+          Logger.warning(fn -> "#{warn_message_prefix} #{inspect(reason)}" end)
           nil
       end
     else
@@ -294,6 +295,7 @@ defmodule Explorer.ChainSpec.GenesisData do
         address_hash: contract["address"],
         name: contract["name"],
         file_path: nil,
+        # todo: process zksync zk_compiler
         compiler_version: contract["compiler"],
         evm_version: nil,
         optimization_runs: nil,
@@ -314,7 +316,7 @@ defmodule Explorer.ChainSpec.GenesisData do
         license_type: :none
       }
 
-      SolidityPublisher.create_or_update_smart_contract(contract["address"], attrs)
+      SmartContract.create_or_update_smart_contract(contract["address"], attrs, false)
     end)
   end
 end

@@ -24,14 +24,19 @@ defmodule Explorer.Migrator.SanitizeIncorrectWETHTokenTransfers do
 
   @impl true
   def init(_) do
+    {:ok, %{}, {:continue, :ok}}
+  end
+
+  @impl true
+  def handle_continue(:ok, state) do
     case MigrationStatus.get_status(@migration_name) do
       "completed" ->
-        :ignore
+        {:stop, :normal, state}
 
       _ ->
         MigrationStatus.set_status(@migration_name, "started")
-        schedule_batch_migration()
-        {:ok, %{step: :delete_duplicates}}
+        schedule_batch_migration(0)
+        {:noreply, %{step: :delete_duplicates}}
     end
   end
 
@@ -128,13 +133,13 @@ defmodule Explorer.Migrator.SanitizeIncorrectWETHTokenTransfers do
   defp run_task(batch), do: Task.async(fn -> handle_batch(batch) end)
 
   defp handle_batch(token_transfer_ids) do
-    token_transfer_ids
-    |> build_delete_query()
-    |> Repo.query!([], timeout: :infinity)
+    query = TokenTransfer.by_ids_query(token_transfer_ids)
+
+    Repo.delete_all(query, timeout: :infinity)
   end
 
-  defp schedule_batch_migration do
-    Process.send(self(), :migrate_batch, [])
+  defp schedule_batch_migration(timeout \\ nil) do
+    Process.send_after(self(), :migrate_batch, timeout || Application.get_env(:explorer, __MODULE__)[:timeout])
   end
 
   defp batch_size do
@@ -145,13 +150,5 @@ defmodule Explorer.Migrator.SanitizeIncorrectWETHTokenTransfers do
     default = 4 * System.schedulers_online()
 
     Application.get_env(:explorer, __MODULE__)[:concurrency] || default
-  end
-
-  defp build_delete_query(token_transfer_ids) do
-    """
-    DELETE
-    FROM token_transfers tt
-    WHERE (tt.transaction_hash, tt.block_hash, tt.log_index) IN #{TokenTransfer.encode_token_transfer_ids(token_transfer_ids)}
-    """
   end
 end

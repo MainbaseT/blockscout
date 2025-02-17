@@ -3,7 +3,8 @@ defmodule Indexer.BufferedTaskTest do
 
   import Mox
 
-  alias Indexer.{BoundQueue, BufferedTask}
+  alias Explorer.BoundQueue
+  alias Indexer.BufferedTask
   alias Indexer.BufferedTaskTest.{RetryableTask, ShrinkableTask}
 
   @max_batch_size 2
@@ -243,7 +244,8 @@ defmodule Indexer.BufferedTaskTest do
                  flush_timer: nil,
                  task_supervisor: BufferedTaskSup,
                  max_batch_size: 1,
-                 max_concurrency: 1
+                 max_concurrency: 1,
+                 poll: false
                })
 
       refute flush_timer == nil
